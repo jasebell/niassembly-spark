@@ -52,11 +52,33 @@
                                (let [freqmap (map (fn [question] (:departmentname question)) questions)]
                                  (spark/tuple key (frequencies freqmap))))))))
 
+(defn mlaname-department-frequencies-rdd [members-questions-rdd]
+  (->> members-questions-rdd
+       (spark/map-to-pair 
+        (s-de/key-val-val-fn (fn [key member questions]
+                               (let [freqmap (map (fn [question] (:departmentname question)) questions)]
+                                 (spark/tuple (:membername member) (frequencies freqmap))))))))
+
+(defn generate-csv-output [mddep-freq]
+  (->> mddep-freq 
+       (spark/map (s-de/key-value-fn (fn [k v] (let [mlaname k]
+                                                 (map (fn [[department frequency]]
+                                                        [(str/replace mlaname #"," "")
+                                                         (str/replace department #"," "")
+                                                         (double (/ frequency 10)) ]) v)))))
+       (spark/collect)))
+
+
+(defn write-csv-file [filepath data]
+  (with-open [out-file (io/writer filepath)]
+    (csv/write-csv out-file data)))
+
 (comment
   (def c (-> (conf/spark-conf)
              (conf/master "local[3]")
              (conf/app-name "niassemblydata-sparkjob")))
   (def sc (spark/spark-context c))
+
 
 )
  
